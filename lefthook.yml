@@ -1,0 +1,48 @@
+# Lefthook config for research-harness-console.
+#
+# This project has no linter, formatter, type checker, or test runner
+# installed (plain JS/JSX, no build step — see README.md). These hooks
+# don't invent tooling the project doesn't have; they run the checks that
+# already exist in .github/workflows/*.yml against staged/changed files,
+# so a problem CI would catch is caught locally first. See
+# docs/runbooks/ci-release-gate-failure.md for what each CI job does.
+#
+# Bypass in an emergency: git commit --no-verify / git push --no-verify
+
+pre-commit:
+  parallel: true
+  commands:
+    parse-check:
+      glob: "*.{js,jsx}"
+      run: node scripts/hooks/check-parse.js {staged_files}
+
+    workflow-pin-check:
+      glob: ".github/workflows/*.yml"
+      run: node scripts/hooks/check-workflow-pins.js {staged_files}
+
+    lockfile-consistency:
+      glob: "package.json"
+      run: >-
+        git diff --cached --name-only | grep -qx 'package-lock.json' ||
+        (echo 'package.json changed without package-lock.json — run npm install and stage both' && exit 1)
+
+    merge-conflict-markers:
+      glob: "*"
+      run: >-
+        ! grep -nE '^(<{7}|={7}$|>{7})' {staged_files}
+
+    large-files:
+      run: >-
+        for f in {staged_files}; do
+          [ -f "$f" ] || continue;
+          size=$(wc -c < "$f" | tr -d ' ');
+          if [ "$size" -gt 5242880 ]; then
+            echo "FAIL $f is $((size / 1048576))MB — over the 5MB limit (no git-lfs configured in this repo)";
+            exit 1;
+          fi;
+        done
+
+pre-push:
+  commands:
+    full-parse-check:
+      run: node scripts/hooks/check-parse.js

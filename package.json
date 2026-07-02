@@ -5,6 +5,7 @@
   "description": "Local-only desktop console for a MIF Research Harness clone: a live knowledge graph, report reader, and corpus search over its reports/ directory, plus an MCP server so Claude can read the same live corpus.",
   "main": "main.js",
   "scripts": {
+    "prepare": "lefthook install",
     "start": "electron .",
     "server": "node server/start.js",
     "mcp": "node server/mcp-server.js",
@@ -28,7 +29,8 @@
   },
   "devDependencies": {
     "electron": "43.0.0",
-    "electron-builder": "26.15.3"
+    "electron-builder": "26.15.3",
+    "lefthook": "2.1.9"
   },
   "build": {
     "appId": "dev.mif.research-harness-console",
@@ -45,15 +47,21 @@
       "!node_modules/electron-builder/**/*"
     ],
     "mac": {
-      "target": ["dmg"],
+      "target": [
+        "dmg"
+      ],
       "category": "public.app-category.developer-tools"
     },
     "linux": {
-      "target": ["AppImage"],
+      "target": [
+        "AppImage"
+      ],
       "category": "Development"
     },
     "win": {
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
     }
   }
 }
