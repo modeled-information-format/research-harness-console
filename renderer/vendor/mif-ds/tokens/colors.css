@@ -1,0 +1,122 @@
+/* ============================================================
+   MIF — Color tokens
+   Dark is the default. The brand lives in the dark.
+   Two readers, one artifact: machine-cyan + human-amber.
+   ============================================================ */
+
+:root,
+[data-theme="dark"] {
+  /* ---- Surfaces (dark, canonical) ---- */
+  --void:      #0a0d13; /* deepest — page ground, nav, sidebar */
+  --base:      #0e121b; /* app background */
+  --elevated:  #151b27; /* cards, raised panels */
+  --overlay:   #1c2433; /* inline code, popovers, inputs */
+  --hairline:  #222c3c; /* faint dividers */
+  --border:    #2e3a4d; /* default border */
+  --border-strong: #3c4b63; /* emphasized border / gray-4 */
+
+  /* ---- Text ---- */
+  --text:   #e8eef6; /* primary */
+  --text-2: #aebccf; /* secondary */
+  --muted:  #7c8aa0; /* tertiary / captions */
+
+  /* ---- Machine-cyan: the primary interactive accent (the parser) ---- */
+  --machine:        #34d3e8;
+  --machine-strong: #1bb6cc; /* hover / pressed */
+  --machine-high:   #afedf6; /* high-emphasis text on dark */
+  --machine-low:    #0a2630; /* tinted fill / accent surface */
+
+  /* ---- Human-amber: the emphasis accent (the reader) — used sparingly ---- */
+  --human:      #f5b642;
+  --human-low:  #2a2213; /* tinted amber fill */
+
+  /* ---- Extended status / catalog accents (from org badge palette) ---- */
+  --violet: #a371f7;
+  --green:  #3fb950;
+  --pink:   #f2557d;
+
+  /* ---- Neutral gray ramp (Starlight-aligned, dark) ---- */
+  --gray-1: #e8eef6;
+  --gray-2: #aebccf;
+  --gray-3: #7c8aa0;
+  --gray-4: #3c4b63;
+  --gray-5: #2e3a4d;
+  --gray-6: #222c3c;
+  --gray-7: #151b27;
+
+  /* ============================================================
+     Semantic aliases — reference these in components
+     ============================================================ */
+  --bg-page:        var(--base);
+  --bg-ground:      var(--void);
+  --surface-card:   var(--elevated);
+  --surface-inset:  var(--overlay);
+  --surface-input:  var(--overlay);
+
+  --text-body:      var(--text);
+  --text-subtle:    var(--text-2);
+  --text-faint:     var(--muted);
+  --text-accent:    var(--machine);
+
+  --border-default: var(--border);
+  --border-subtle:  var(--hairline);
+  --border-accent:  var(--machine);
+
+  /* Roles */
+  --accent:         var(--machine);       /* primary interactive */
+  --accent-hover:   var(--machine-strong);
+  --emphasis:       var(--human);         /* human emphasis marker */
+
+  --success: var(--green);
+  --info:    var(--machine);
+  --warning: var(--human);
+  --danger:  var(--pink);
+
+  /* Signature background wash — the "reading light" from above */
+  --wash-top: radial-gradient(1200px 600px at 50% -10%, #11202b 0%, var(--void) 60%);
+
+  /* Focus ring */
+  --ring: 0 0 0 2px var(--void), 0 0 0 4px var(--machine);
+
+  /* Sticky nav glass — theme-aware translucent backdrop */
+  --nav-glass: rgba(10, 13, 19, 0.82);
+}
+
+/* ============================================================
+   Light theme — the daylight reading mode.
+   Accents darkened for AA contrast on white.
+   Apply via [data-theme="light"] on a scope.
+   ============================================================ */
+[data-theme="light"] {
+  --void:      #eef2f8;
+  --base:      #f8fafd;
+  --elevated:  #ffffff;
+  --overlay:   #edf1f7;
+  --hairline:  #e2e8f1;
+  --border:    #cfd8e5;
+  --border-strong: #a9b6cb;
+
+  --text:   #0e121b;
+  --text-2: #3a465b;
+  --muted:  #5a6678;
+
+  --machine:        #0b7488;
+  --machine-strong: #06343d;
+  --machine-high:   #06343d;
+  --machine-low:    #e1f5f9;
+
+  --human:     #b07405;
+  --human-low: #fbf1dc;
+
+  --gray-1: #0e121b;
+  --gray-2: #3a465b;
+  --gray-3: #5a6678;
+  --gray-4: #a9b6cb;
+  --gray-5: #cfd8e5;
+  --gray-6: #e2e8f1;
+  --gray-7: #edf1f7;
+
+  --wash-top: radial-gradient(1200px 600px at 50% -10%, #ffffff 0%, var(--base) 60%);
+  --ring: 0 0 0 2px #ffffff, 0 0 0 4px var(--machine);
+  --nav-glass: rgba(248, 250, 253, 0.82);
+}

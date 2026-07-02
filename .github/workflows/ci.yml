@@ -1,0 +1,102 @@
+---
+name: CI
+
+# Continuous integration: runs on every push and pull_request to main.
+# Includes a mandatory pin-check job that fails if any workflow uses a
+# non-SHA action reference — enforcing the supply-chain security invariant
+# that every action must be pinned to a full 40-char commit SHA.
+
+"on":
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Pin check — every `uses:` in this repo MUST be pinned to a full 40-char
+  # commit SHA; tag/branch refs are rejected. Thin caller of the org's central
+  # pin-check.yml reusable, not an inline re-implementation.
+  # ---------------------------------------------------------------------------
+  # modeled-information-format/.github main @ e50b004
+  pin-check:
+    permissions:
+      contents: read
+    uses: >-
+      modeled-information-format/.github/.github/workflows/pin-check.yml@e50b004cbdcf2b3258d223b1f6a4d98ff7938abf
+
+  # ---------------------------------------------------------------------------
+  # Validate: verify workflow YAML is well-formed. Thin caller of the central
+  # reusable-actionlint — the verified, pinned actionlint download lives in
+  # the reusable, not reinvented here.
+  # ---------------------------------------------------------------------------
+  # modeled-information-format/.github main @ e50b004
+  validate-workflows:
+    permissions:
+      contents: read
+    uses: >-
+      modeled-information-format/.github/.github/workflows/reusable-actionlint.yml@e50b004cbdcf2b3258d223b1f6a4d98ff7938abf
+
+  # ---------------------------------------------------------------------------
+  # Sanity: no build step exists yet for this app (renderer is served as
+  # plain scripts + in-browser Babel, no bundler) — verify the entry points
+  # at least parse as valid JS/JSX via Babel, so a syntax error in main.js,
+  # preload.js, server/*.js, or renderer/*.jsx fails CI instead of shipping.
+  # ---------------------------------------------------------------------------
+  sanity:
+    name: Sanity (parse check)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        # v4.3.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Setup Node
+        # v4.4.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "lts/*"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Parse-check every JS/JSX entry point
+        run: |
+          set -euo pipefail
+          node -e "
+            const Babel = require('@babel/standalone');
+            const fs = require('fs');
+            const path = require('path');
+            function walk(dir) {
+              let out = [];
+              for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+                const full = path.join(dir, entry.name);
+                if (entry.isDirectory()) out = out.concat(walk(full));
+                else if (/\.(js|jsx)$/.test(entry.name)) out.push(full);
+              }
+              return out;
+            }
+            const files = ['main.js', 'preload.js']
+              .concat(walk('server'))
+              .concat(walk('renderer'));
+            let failed = false;
+            for (const f of files) {
+              try {
+                Babel.transform(fs.readFileSync(f, 'utf8'), { presets: ['react'], filename: f });
+                console.log('OK  ', f);
+              } catch (e) {
+                failed = true;
+                console.error('FAIL', f, '-', e.message);
+              }
+            }
+            if (failed) process.exit(1);
+          "

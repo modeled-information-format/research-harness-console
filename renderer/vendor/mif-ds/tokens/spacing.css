@@ -1,0 +1,29 @@
+/* ============================================================
+   MIF — Spacing & layout
+   Base unit 4px. Generous vertical rhythm; content maxes at ~64rem
+   like the landing page and docs.
+   ============================================================ */
+
+:root {
+  --space-0:  0;
+  --space-1:  0.25rem;  /* 4  */
+  --space-2:  0.5rem;   /* 8  */
+  --space-3:  0.75rem;  /* 12 */
+  --space-4:  1rem;     /* 16 */
+  --space-5:  1.5rem;   /* 24 */
+  --space-6:  2rem;     /* 32 */
+  --space-7:  3rem;     /* 48 */
+  --space-8:  4rem;     /* 64 */
+  --space-9:  6rem;     /* 96 */
+
+  /* Content widths */
+  --measure-prose:  46rem;  /* readable line length */
+  --measure-page:   64rem;  /* main column */
+  --measure-wide:   80rem;
+
+  /* Component insets */
+  --pad-chip:   0.4rem 0.8rem;
+  --pad-btn:    0.55rem 1rem;
+  --pad-card:   1.25rem;
+  --pad-input:  0.55rem 0.75rem;
+}

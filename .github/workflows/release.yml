@@ -1,0 +1,479 @@
+---
+name: Release
+
+# Attested delivery pipeline for a multi-platform Electron app.
+#
+# Flow: build (macOS/Linux/Windows matrix, electron-builder) → per-artifact
+#       SLSA build provenance → collect all platforms + generate a checksums
+#       manifest (also provenance+SBOM attested) → SAST/SCA/IaC-license gates
+#       + VEX, each signed as a digest-bound attestation over the checksums
+#       manifest (source-level scans are identical across platforms, so one
+#       verdict per gate covers the whole release) → fail-closed verify →
+#       tag-gated publish.
+#
+# The invariant: an artifact reaches consumers ONLY if it is byte-identical to
+# what was validated, carries SLSA provenance + SBOM + gate-verdict
+# attestations that re-verify at every hop, and publication is fail-closed on
+# that verification. A tag publishes nothing unattested.
+#
+# Dry-run: workflow_dispatch from any branch exercises the full
+# build → attest → verify chain; the publish job is tag-gated and skipped.
+#
+# No code-signing certs (macOS notarization / Windows Authenticode) exist yet
+# for this repo — artifacts are OS-unsigned (Gatekeeper/SmartScreen will flag
+# them) but fully SLSA-attested and sigstore-signed. See SECURITY.md.
+
+"on":
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Meta: resolve artifact name + version from the tag or a dev default.
+  # ---------------------------------------------------------------------------
+  meta:
+    name: Resolve Metadata
+    runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.meta.outputs.name }}
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - name: Resolve artifact name and version
+        id: meta
+        run: |
+          set -euo pipefail
+          NAME="${GITHUB_REPOSITORY##*/}"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION="0.0.0-dev"
+          fi
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Resolved: ${NAME} ${VERSION}"
+
+  # ---------------------------------------------------------------------------
+  # Build: package the Electron app per platform via electron-builder. Each
+  # matrix leg produces its own artifact(s), each independently attested with
+  # SLSA build provenance (provenance describes how THAT file was built, on
+  # which runner — legitimately per-artifact, not shared).
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build (${{ matrix.platform }})
+    needs: [meta]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: macos
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: windows
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write      # required for OIDC -> Sigstore signing
+      attestations: write  # required to write attestation records
+    steps:
+      - name: Checkout repository
+        # v4.3.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Setup Node
+        # v4.4.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "lts/*"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # electron-builder invocations are split per-arch with an explicit
+      # artifactName override so filenames land exactly on the org's
+      # {name}-{version}-{platform} convention with no post-hoc renaming.
+      - name: Build (macOS)
+        if: matrix.platform == 'macos'
+        env:
+          NAME: ${{ needs.meta.outputs.name }}
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          npx electron-builder --mac --x64 -c.artifactName="${NAME}-${VERSION}-macos-amd64.\${ext}"
+          npx electron-builder --mac --arm64 -c.artifactName="${NAME}-${VERSION}-macos-arm64.\${ext}"
+
+      - name: Build (Linux)
+        if: matrix.platform == 'linux'
+        env:
+          NAME: ${{ needs.meta.outputs.name }}
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          npx electron-builder --linux --x64 -c.artifactName="${NAME}-${VERSION}-linux-amd64.\${ext}"
+          npx electron-builder --linux --arm64 -c.artifactName="${NAME}-${VERSION}-linux-arm64.\${ext}"
+
+      - name: Build (Windows)
+        if: matrix.platform == 'windows'
+        shell: bash
+        env:
+          NAME: ${{ needs.meta.outputs.name }}
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          npx electron-builder --win --x64 -c.artifactName="${NAME}-${VERSION}-windows-amd64.\${ext}"
+
+      - name: List built artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -la dist/
+          sha256sum dist/*.dmg dist/*.AppImage dist/*.exe 2>/dev/null || true
+
+      # -----------------------------------------------------------------------
+      # Attest SLSA build provenance for this platform's artifact(s).
+      # -----------------------------------------------------------------------
+      - name: Attest build provenance
+        # v2.4.0
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be
+        with:
+          subject-path: |
+            dist/*.dmg
+            dist/*.AppImage
+            dist/*.exe
+
+      - name: Upload build artifact
+        # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ needs.meta.outputs.name }}-${{ needs.meta.outputs.version }}-dist-${{ matrix.platform }}
+          path: |
+            dist/*.dmg
+            dist/*.AppImage
+            dist/*.exe
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Collect: aggregate every platform's artifacts and generate a checksums
+  # manifest. The manifest is the subject the seam-signed gate verdicts
+  # (SAST/SCA/IaC/VEX) bind to, since those reusables take one subject digest
+  # and the underlying source-level scans are identical across platforms.
+  # The manifest itself is independently provenance + SBOM attested.
+  # ---------------------------------------------------------------------------
+  collect:
+    name: Collect + Manifest
+    needs: [meta, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    outputs:
+      subject-name: ${{ steps.subject.outputs.name }}
+      subject-digest: ${{ steps.subject.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        # v4.3.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Download all platform artifacts
+        # v4.3.0
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: ${{ needs.meta.outputs.name }}-${{ needs.meta.outputs.version }}-dist-*
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums manifest
+        id: subject
+        env:
+          NAME: ${{ needs.meta.outputs.name }}
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          cd dist
+          FILE="${NAME}-${VERSION}-checksums.txt"
+          sha256sum -- * > "${FILE}"
+          cat "${FILE}"
+          DIGEST=$(sha256sum "${FILE}" | cut -d' ' -f1)
+          echo "name=${FILE}" >> "$GITHUB_OUTPUT"
+          echo "digest=sha256:${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Attest build provenance (manifest)
+        # v2.4.0
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be
+        with:
+          subject-path: dist/*-checksums.txt
+
+      # CycloneDX SBOM over the repo's dependency tree — shared across every
+      # platform build (same package-lock.json), so one SBOM covers the
+      # whole release; bound to the checksums manifest as its subject.
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: ${{ needs.meta.outputs.name }}-${{ needs.meta.outputs.version }}-sbom.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Attest SBOM (manifest)
+        # v2.4.0
+        uses: actions/attest-sbom@bd218ad0dbcb3e146bd073d1d9c6d78e08aa8a0b
+        with:
+          subject-path: dist/*-checksums.txt
+          sbom-path: ${{ needs.meta.outputs.name }}-${{ needs.meta.outputs.version }}-sbom.cdx.json
+
+      - name: Upload manifest artifact
+        # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ needs.meta.outputs.name }}-${{ needs.meta.outputs.version }}-dist-manifest
+          path: dist/*-checksums.txt
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # SAST gate + attestation seam, bound to the checksums manifest subject.
+  # languages: javascript-typescript scans this app's real source; actions
+  # additionally covers the repo's own workflows.
+  # ---------------------------------------------------------------------------
+  gate-sast:
+    name: Gate — SAST (CodeQL)
+    needs: [meta]
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+      packages: read
+    # modeled-information-format/.github main @ e50b004
+    uses: >-
+      modeled-information-format/.github/.github/workflows/reusable-sast-codeql.yml@e50b004cbdcf2b3258d223b1f6a4d98ff7938abf
+    with:
+      languages: javascript-typescript
+      build-mode: none
+
+  attest-sast:
+    name: Attest — SAST
+    needs: [meta, collect, gate-sast]
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    # modeled-information-format/.github main @ e50b004
+    uses: >-
+      modeled-information-format/.github/.github/workflows/reusable-attest-scan.yml@e50b004cbdcf2b3258d223b1f6a4d98ff7938abf
+    with:
+      subject-name: ${{ needs.collect.outputs.subject-name }}
+      subject-digest: ${{ needs.collect.outputs.subject-digest }}
+      predicate-type: https://modeled-information-format.github.io/attestations/sast/v1
+      predicate-artifact: ${{ needs.gate-sast.outputs.sarif-artifact }}
+      predicate-filename: ${{ needs.gate-sast.outputs.sarif-filename }}
+
+  # ---------------------------------------------------------------------------
+  # SCA (OSV) gate + attestation seam, bound to the checksums manifest.
+  # ---------------------------------------------------------------------------
+  gate-sca:
+    name: Gate — SCA (OSV)
+    needs: [meta]
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+      pull-requests: write
+    # modeled-information-format/.github main @ e50b004
+    uses: >-
+      modeled-information-format/.github/.github/workflows/reusable-sca-osv.yml@e50b004cbdcf2b3258d223b1f6a4d98ff7938abf
+    with:
+      fail-on-severity: high
+
+  attest-sca:
+    name: Attest — SCA
+    needs: [meta, collect, gate-sca]
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    # modeled-information-format/.github main @ e50b004
+    uses: >-
+      modeled-information-format/.github/.github/workflows/reusable-attest-scan.yml@e50b004cbdcf2b3258d223b1f6a4d98ff7938abf
+    with:
+      subject-name: ${{ needs.collect.outputs.subject-name }}
+      subject-digest: ${{ needs.collect.outputs.subject-digest }}
+      predicate-type: https://modeled-information-format.github.io/attestations/sca/v1
+      predicate-artifact: ${{ needs.gate-sca.outputs.sarif-artifact }}
+      predicate-filename: ${{ needs.gate-sca.outputs.sarif-filename }}
+
+  # ---------------------------------------------------------------------------
+  # IaC + license (Trivy filesystem) gate + attestation seam.
+  # ---------------------------------------------------------------------------
+  gate-trivy:
+    name: Gate — Trivy (IaC/license)
+    needs: [meta]
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      packages: read
+    # modeled-information-format/.github main @ e50b004
+    uses: >-
+      modeled-information-format/.github/.github/workflows/reusable-trivy.yml@e50b004cbdcf2b3258d223b1f6a4d98ff7938abf
+    with:
+      scan-iac: true
+
+  attest-iac-license:
+    name: Attest — IaC/license
+    needs: [meta, collect, gate-trivy]
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    # modeled-information-format/.github main @ e50b004
+    uses: >-
+      modeled-information-format/.github/.github/workflows/reusable-attest-scan.yml@e50b004cbdcf2b3258d223b1f6a4d98ff7938abf
+    with:
+      subject-name: ${{ needs.collect.outputs.subject-name }}
+      subject-digest: ${{ needs.collect.outputs.subject-digest }}
+      predicate-type: https://modeled-information-format.github.io/attestations/iac-license/v1
+      predicate-artifact: ${{ needs.gate-trivy.outputs.sarif-artifact }}
+      predicate-filename: ${{ needs.gate-trivy.outputs.sarif-filename }}
+
+  # ---------------------------------------------------------------------------
+  # VEX — OpenVEX vulnerability disposition, self-signed by reusable-vex.yml
+  # (its own signer identity) bound to the checksums manifest subject.
+  # ---------------------------------------------------------------------------
+  vex:
+    name: Gate — VEX (OpenVEX)
+    needs: [meta, collect]
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    # modeled-information-format/.github main @ e50b004
+    uses: >-
+      modeled-information-format/.github/.github/workflows/reusable-vex.yml@e50b004cbdcf2b3258d223b1f6a4d98ff7938abf
+    with:
+      subject-name: ${{ needs.collect.outputs.subject-name }}
+      subject-digest: ${{ needs.collect.outputs.subject-digest }}
+      vex-path: .vex/openvex.json
+
+  # ---------------------------------------------------------------------------
+  # Verify: FAIL-CLOSED attestation verification. Must succeed before publish.
+  # ---------------------------------------------------------------------------
+  verify:
+    name: Verify Attestations (fail-closed)
+    needs: [meta, build, collect, attest-sast, attest-sca, attest-iac-license, vex]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      attestations: read
+
+    steps:
+      - name: Download all platform artifacts
+        # v4.3.0
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: ${{ needs.meta.outputs.name }}-${{ needs.meta.outputs.version }}-dist-*
+          path: all-artifacts
+          merge-multiple: true
+
+      - name: Fail-closed attestation verification
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          SEAM: modeled-information-format/.github/.github/workflows/reusable-attest-scan.yml
+          VEX_SIGNER: modeled-information-format/.github/.github/workflows/reusable-vex.yml
+          MANIFEST: ${{ needs.collect.outputs.subject-name }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          echo "=== Per-platform SLSA build provenance ==="
+          for artifact in all-artifacts/*; do
+            case "$artifact" in *checksums.txt) continue ;; esac
+            echo "--- ${artifact} ---"
+            gh attestation verify "${artifact}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --predicate-type "https://slsa.dev/provenance/v1"
+            echo "PASS: build provenance"
+          done
+
+          MANIFEST_FILE="all-artifacts/${MANIFEST}"
+          if [ ! -f "${MANIFEST_FILE}" ]; then
+            echo "::error::Checksums manifest not found: ${MANIFEST_FILE}"
+            exit 1
+          fi
+
+          echo ""
+          echo "=== Checksums manifest (${MANIFEST}) ==="
+
+          echo "  [1/2] Build provenance..."
+          gh attestation verify "${MANIFEST_FILE}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --predicate-type "https://slsa.dev/provenance/v1"
+          echo "  PASS: build provenance"
+
+          echo "  [2/2] SBOM attestation..."
+          gh attestation verify "${MANIFEST_FILE}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --predicate-type "https://cyclonedx.org/bom"
+          echo "  PASS: SBOM attestation"
+
+          for pt in sast sca iac-license; do
+            echo "  Gate verdict (${pt}, seam)..."
+            gh attestation verify "${MANIFEST_FILE}" \
+              --owner "${OWNER}" \
+              --signer-workflow "${SEAM}" \
+              --predicate-type "https://modeled-information-format.github.io/attestations/${pt}/v1"
+            echo "  PASS: ${pt} verdict"
+          done
+
+          echo "  VEX disposition (OpenVEX)..."
+          gh attestation verify "${MANIFEST_FILE}" \
+            --owner "${OWNER}" \
+            --signer-workflow "${VEX_SIGNER}" \
+            --predicate-type "https://openvex.dev/ns/v0.2.0"
+          echo "  PASS: VEX disposition"
+
+          echo ""
+          echo "All attestations verified. Proceeding to publish."
+
+  # ---------------------------------------------------------------------------
+  # Publish: create a GitHub Release. GATED: requires verify to succeed AND
+  # the ref must be a tag. Nothing is published on workflow_dispatch (dry-run)
+  # or non-tag pushes.
+  # ---------------------------------------------------------------------------
+  publish:
+    name: Publish Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [meta, verify]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # required to create the GitHub Release
+
+    steps:
+      - name: Download all platform artifacts
+        # v4.3.0
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: ${{ needs.meta.outputs.name }}-${{ needs.meta.outputs.version }}-dist-*
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          PRERELEASE=()
+          case "${GITHUB_REF_NAME}" in *-*) PRERELEASE=(--prerelease) ;; esac
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Release ${VERSION}" \
+            --generate-notes \
+            "${PRERELEASE[@]}"

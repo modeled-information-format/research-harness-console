@@ -1,0 +1,54 @@
+/* ============================================================
+   MIF — Typography
+   Two type roles that mirror the two readers:
+   · MONO (JetBrains Mono) — display, wordmark, chips, kickers,
+     code, and anything "machine-facing." This is the brand voice.
+   · SANS (system-ui) — running prose the human reads.
+   ============================================================ */
+
+:root {
+  /* ---- Families ---- */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", "Fira Code", Menlo,
+    Consolas, monospace;
+
+  /* Display face = mono. Headings and the wordmark use this. */
+  --font-display: var(--font-mono);
+
+  /* ---- Weights ---- */
+  --fw-regular: 400; /* @kind other */
+  --fw-medium:  500; /* @kind other */
+  --fw-bold:    700; /* @kind other */
+  --fw-black:   800; /* @kind other */
+
+  /* ---- Type scale (rem) ---- */
+  --fs-display: 3.8rem;   /* hero wordmark */
+  --fs-h1:      2.5rem;
+  --fs-h2:      1.9rem;
+  --fs-h3:      1.4rem;
+  --fs-h4:      1.15rem;
+  --fs-lg:      1.25rem;  /* lead / tagline */
+  --fs-body:    1rem;
+  --fs-sm:      0.9rem;
+  --fs-xs:      0.8rem;
+  --fs-2xs:     0.72rem;  /* kickers, meta labels */
+
+  /* ---- Line heights ---- */
+  --lh-tight:   1.15; /* @kind other */
+  --lh-snug:    1.3; /* @kind other */
+  --lh-normal:  1.6;   /* @kind other */
+  --lh-relaxed: 1.75; /* @kind other */
+
+  /* ---- Letter spacing ---- */
+  --ls-display:  0.04em;  /* wordmark + mono headings */
+  --ls-wide:     0.06em;  /* small mono labels */
+  --ls-wider:    0.12em;  /* kickers / eyebrows, uppercased */
+  --ls-normal:   0; /* @kind other */
+
+  /* ---- Semantic aliases ---- */
+  --text-display-font:  var(--font-display);
+  --text-heading-font:  var(--font-display);
+  --text-body-font:     var(--font-sans);
+  --text-code-font:     var(--font-mono);
+}

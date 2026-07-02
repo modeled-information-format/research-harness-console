@@ -1,0 +1,59 @@
+{
+  "name": "research-harness-console",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-only desktop console for a MIF Research Harness clone: a live knowledge graph, report reader, and corpus search over its reports/ directory, plus an MCP server so Claude can read the same live corpus.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "server": "node server/start.js",
+    "mcp": "node server/mcp-server.js",
+    "build": "electron-builder --mac --linux --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "build:win": "electron-builder --win"
+  },
+  "dependencies": {
+    "@babel/standalone": "7.29.7",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "chokidar": "3.6.0",
+    "express": "4.22.2",
+    "gray-matter": "4.0.3",
+    "marked": "18.0.5",
+    "mermaid": "11.16.0",
+    "prismjs": "1.30.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "electron": "43.0.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "dev.mif.research-harness-console",
+    "productName": "Research Harness Console",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "server/**/*",
+      "node_modules/**/*",
+      "!node_modules/electron-builder/**/*"
+    ],
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Development"
+    },
+    "win": {
+      "target": ["nsis"]
+    }
+  }
+}

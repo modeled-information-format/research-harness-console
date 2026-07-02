@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Research Harness Console</title>
+<link rel="stylesheet" href="vendor/mif-ds/styles.css">
+<link rel="stylesheet" href="/vendor/prism-tomorrow.min.css">
+<script src="/vendor/react.development.js"></script>
+<script src="/vendor/react-dom.development.js"></script>
+<script src="/vendor/babel.min.js"></script>
+<script src="/vendor/marked.umd.js"></script>
+<script src="/vendor/mermaid.min.js"></script>
+<script>var Prism = { manual: true };</script>
+<script src="/vendor/prism.min.js"></script>
+<script src="/vendor/prism-components/prism-typescript.min.js"></script>
+<script src="/vendor/prism-components/prism-jsx.min.js"></script>
+<script src="/vendor/prism-components/prism-tsx.min.js"></script>
+<script src="/vendor/prism-components/prism-python.min.js"></script>
+<script src="/vendor/prism-components/prism-bash.min.js"></script>
+<script src="/vendor/prism-components/prism-json.min.js"></script>
+<script src="/vendor/prism-components/prism-yaml.min.js"></script>
+<script src="/vendor/prism-components/prism-rust.min.js"></script>
+<script src="/vendor/prism-components/prism-go.min.js"></script>
+<script src="/vendor/prism-components/prism-sql.min.js"></script>
+<script src="/vendor/prism-components/prism-toml.min.js"></script>
+<script src="/vendor/prism-components/prism-diff.min.js"></script>
+<script src="/vendor/prism-components/prism-markdown.min.js"></script>
+<script src="/vendor/prism-components/prism-docker.min.js"></script>
+<script src="/vendor/prism-components/prism-ini.min.js"></script>
+<script src="vendor/mif-ds/_ds_bundle.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { min-height: 100vh; }
+  #root { height: 100vh; }
+
+  /* Reading pane for rendered report markdown (see ReportsView.jsx, window.marked) */
+  .mif-report-body h1, .mif-report-body h2, .mif-report-body h3, .mif-report-body h4 {
+    font-family: var(--font-mono); font-weight: 700; letter-spacing: 0.02em;
+    color: var(--text); margin: 1.6em 0 0.6em;
+  }
+  .mif-report-body h1 { font-size: 1.5rem; }
+  .mif-report-body h2 { font-size: 1.2rem; }
+  .mif-report-body h3 { font-size: 1.02rem; }
+  .mif-report-body p { margin: 0 0 1em; color: var(--text-2); }
+  .mif-report-body a { color: var(--machine); }
+  .mif-report-body code { font-family: var(--font-mono); background: var(--overlay); padding: 0.1em 0.4em; border-radius: var(--radius-sm); font-size: 0.9em; }
+  .mif-report-body pre { background: var(--overlay); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1em; overflow-x: auto; }
+  .mif-report-body pre code { background: none; padding: 0; }
+  .mif-report-body blockquote { border-left: 3px solid var(--human); margin: 1em 0; padding: 0.2em 0 0.2em 1em; color: var(--text-2); }
+  .mif-report-body ul, .mif-report-body ol { color: var(--text-2); padding-left: 1.4em; margin: 0 0 1em; }
+  .mif-report-body li { margin: 0.3em 0; }
+  .mif-report-body hr { border: none; border-top: 1px solid var(--border); margin: 1.6em 0; }
+  .mif-report-body table { border-collapse: collapse; width: 100%; margin: 0 0 1.2em; font-size: 0.88rem; }
+  .mif-report-body th, .mif-report-body td { border: 1px solid var(--border); padding: 0.45em 0.7em; text-align: left; }
+  .mif-report-body th { background: var(--elevated); color: var(--text); font-family: var(--font-mono); font-size: 0.78rem; }
+  .mif-report-body td { color: var(--text-2); }
+  .mif-mermaid { display: flex; justify-content: center; margin: 0 0 1.2em; overflow-x: auto; }
+  .mif-mermaid svg { max-width: 100%; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="GraphView.jsx"></script>
+<script type="text/babel" src="ReportsView.jsx"></script>
+<script type="text/babel" src="SearchView.jsx"></script>
+<script type="text/babel" src="App.jsx"></script>
+</body>
+</html>

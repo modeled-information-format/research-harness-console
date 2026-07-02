@@ -1,0 +1,76 @@
+/* ============================================================
+   MIF — base element styles.
+   Minimal, opt-in. Consumers get sensible dark defaults + the
+   signature top wash. Scope-friendly: everything keys off tokens.
+   ============================================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--base);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* The signature "reading light from above" wash. Add class to a
+   full-bleed container to paint it. */
+.mif-wash {
+  background: var(--wash-top);
+}
+
+/* Headings default to the mono display face. */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-display);
+  line-height: var(--lh-tight);
+  color: var(--text);
+  margin: 0 0 var(--space-4);
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+a {
+  color: var(--machine);
+  text-decoration: none;
+  transition: color var(--motion);
+}
+a:hover { color: var(--machine-strong); }
+
+code, kbd, samp, pre {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+:where(code):not(pre code) {
+  background: var(--overlay);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: 0.1em 0.4em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--machine);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(52, 211, 232, 0.28);
+  color: var(--text);
+}
