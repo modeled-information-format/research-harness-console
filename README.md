@@ -90,6 +90,21 @@ served straight out of `node_modules` (see `server/bridge.js`'s `/vendor/*`
 routes) rather than a CDN, and the design-system assets are vendored locally
 under `renderer/vendor/mif-ds/`.
 
+### Local git hooks
+
+`npm install` wires up [Lefthook](https://lefthook.dev) via its `prepare` script — no separate
+setup step. `lefthook.yml` runs the same checks CI does, against staged/changed files only, so a
+problem fails locally in under a second instead of a few minutes later in `ci.yml`:
+
+- **pre-commit** — parse-checks staged `.js`/`.jsx` (mirrors CI's `sanity` job), verifies any
+  staged `.github/workflows/*.yml` has every `uses:` pinned to a full 40-char SHA (mirrors
+  `pin-check`), blocks a `package.json` change staged without `package-lock.json`, rejects merge
+  conflict markers, and rejects staged files over 5MB (no git-lfs here).
+- **pre-push** — re-runs the parse check across the whole tree, matching CI's `sanity` job
+  exactly.
+
+Bypass in an emergency: `git commit --no-verify` / `git push --no-verify`.
+
 ## Talking to Claude over MCP
 
 ```
