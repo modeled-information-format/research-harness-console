@@ -85,7 +85,9 @@ function createApp(opts) {
       return res.status(403).json({ error: 'change the harness folder from the app UI (Change folder)' });
     }
     const root = req.body && req.body.harnessRoot;
-    if (!root) return res.status(400).json({ error: 'harnessRoot required' });
+    if (typeof root !== 'string' || !root) {
+      return res.status(400).json({ error: 'harnessRoot (string) required' });
+    }
     setRoot(root);
     broadcast({ type: 'config-changed' });
     res.json({ harnessRoot: root });
@@ -152,7 +154,13 @@ function createApp(opts) {
   function watch(root) {
     if (watcher) { watcher.close(); watcher = null; }
     if (!root) return;
-    watcher = chokidar.watch(path.join(root, 'reports'), { ignoreInitial: true, depth: 8 });
+    // disableGlobbing: the root is a directory path (from the native folder
+    // dialog, argv/env, or POST /api/config in standalone server mode), never
+    // a glob. Without it chokidar 3 runs any '{' in the path through
+    // braces.expand(), which is the stack-exhaustion sink of GHSA-vfj7-8cjw-p6xm
+    // (no fixed braces release) — and would also mis-watch a folder whose name
+    // legitimately contains glob characters.
+    watcher = chokidar.watch(path.join(root, 'reports'), { ignoreInitial: true, depth: 8, disableGlobbing: true });
     const notify = function () { broadcast({ type: 'changed', at: Date.now() }); };
     watcher.on('add', notify).on('change', notify).on('unlink', notify).on('addDir', notify);
   }

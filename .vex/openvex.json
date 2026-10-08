@@ -1,19 +1,52 @@
 {
   "@context": "https://openvex.dev/ns/v0.2.0",
-  "@id": "https://modeled-information-format.github.io/vex/research-harness-console/v1",
+  "@id": "https://modeled-information-format.github.io/vex/research-harness-console/v2",
   "author": "modeled-information-format",
   "role": "Project Maintainer",
-  "timestamp": "2026-07-01T00:00:00Z",
-  "version": 1,
+  "timestamp": "2026-10-08T00:00:00Z",
+  "version": 2,
   "statements": [
     {
-      "vulnerability": { "name": "CVE-0000-00000" },
+      "vulnerability": { "name": "GHSA-vfj7-8cjw-p6xm" },
       "products": [
-        { "@id": "pkg:generic/research-harness-console" }
+        {
+          "@id": "pkg:generic/research-harness-console",
+          "subcomponents": [{ "@id": "pkg:npm/braces@3.0.3" }]
+        }
       ],
       "status": "not_affected",
       "justification": "vulnerable_code_not_in_execute_path",
-      "impact_statement": "Sample disposition — replace with real entries. This shows how a non-applicable CVE is recorded so the deploy gate can enforce 'no UNDISPOSITIONED high/critical vulnerabilities' rather than 'zero findings'."
+      "impact_statement": "No fixed braces release exists. Its only call site in this app is chokidar 3's glob expansion of the watch path, which server/bridge.js disables with disableGlobbing: true, so no input reaches braces.expand(). Mirrors the waiver in osv-scanner.toml."
+    },
+    {
+      "vulnerability": { "name": "GHSA-hp3w-g68c-fv3c" },
+      "products": [
+        {
+          "@id": "pkg:generic/research-harness-console",
+          "subcomponents": [
+            { "@id": "pkg:npm/sprintf-js@1.0.3" },
+            { "@id": "pkg:npm/sprintf-js@1.1.3" }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "No fixed sprintf-js release exists; exploitation requires an attacker-controlled format string. 1.0.3 is reached only via argparse from js-yaml 3's CLI, which gray-matter never executes; 1.1.3 is electron-builder build-time logging with fixed format strings and is not packaged. Mirrors the waiver in osv-scanner.toml."
+    },
+    {
+      "vulnerability": { "name": "GHSA-238p-pmpm-9mq7" },
+      "products": [
+        {
+          "@id": "pkg:generic/research-harness-console",
+          "subcomponents": [
+            { "@id": "pkg:npm/katex@0.16.47" },
+            { "@id": "pkg:npm/katex@0.16.45" }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "inline_mitigations_already_exist",
+      "impact_statement": "Low severity (CVSS 2.1). KaTeX is reached only through mermaid (lockfile 0.16.47; 0.16.45 bundled in mermaid.min.js), which pins katex ^0.16 while the fix is 0.18.2. Exploitation requires Object.prototype to already be polluted by a separate bug, and mermaid runs with securityLevel 'strict'. Mirrors the waiver in osv-scanner.toml."
     }
   ]
 }
