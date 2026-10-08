@@ -32,6 +32,9 @@
     "electron-builder": "26.15.3",
     "lefthook": "2.1.9"
   },
+  "overrides": {
+    "katex": "^0.18.2"
+  },
   "build": {
     "appId": "dev.mif.research-harness-console",
     "productName": "Research Harness Console",

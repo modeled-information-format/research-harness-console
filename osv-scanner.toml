@@ -6,15 +6,20 @@
 # app's inputs. Everything that had an in-range fix was upgraded instead.
 # Revisit on every dependency bump; remove an entry as soon as a fix lands.
 # Each entry carries an ignoreUntil date so the scan fails again and forces a
-# re-review even if nobody bumps dependencies. The same three dispositions are
+# re-review even if nobody bumps dependencies. The same two dispositions are
 # recorded as signed OpenVEX statements in .vex/openvex.json (see
 # docs/runbooks/ci-release-gate-failure.md); keep the two files in sync.
 #
+# katex (GHSA-238p-pmpm-9mq7) is fixed in the lockfile by an npm `overrides`
+# entry forcing katex ^0.18.2 past mermaid's ^0.16 range, so it needs no
+# waiver here.
+#
 # Not covered by this scan: renderer/index.html loads mermaid's prebuilt
 # dist/mermaid.min.js, which bundles its own DOMPurify (3.4.0) and KaTeX
-# (0.16.45). osv-scanner reads only package-lock.json, so lockfile bumps of
-# dompurify/katex do not change what the renderer runs. Clearing those needs a
-# mermaid release that rebuilds its bundle (mermaid 12 is a major bump).
+# (0.16.45). osv-scanner reads only package-lock.json, so lockfile bumps or
+# overrides of dompurify/katex do not change what the renderer runs. Clearing
+# those needs a mermaid release that rebuilds its bundle (mermaid 12 is a
+# major bump).
 
 [[IgnoredVulns]]
 id = "GHSA-vfj7-8cjw-p6xm"
@@ -41,17 +46,3 @@ ignoreUntil = 2027-01-08T00:00:00Z
 #     build-time logging with roarr's own format strings; not packaged.
 # Remove this entry once sprintf-js ships a fix or gray-matter drops js-yaml 3.
 reason = "No fixed sprintf-js release exists; exploit needs an attacker-controlled format string. Runtime copy is only reachable via js-yaml's CLI (never executed by gray-matter); dev copy is electron-builder build-time logging with fixed format strings."
-
-[[IgnoredVulns]]
-id = "GHSA-238p-pmpm-9mq7"
-ignoreUntil = 2027-01-08T00:00:00Z
-# katex 0.16.47 in the lockfile (and 0.16.45 bundled inside mermaid.min.js,
-# which is the copy the renderer actually executes), CVSS 2.1 (low). Pulled in
-# only by mermaid 11.16.1, which pins katex ^0.16; the fix is 0.18.2, outside
-# that range. Report markdown can reach KaTeX through mermaid diagrams in the
-# renderer, but exploiting this requires Object.prototype to already be
-# polluted by some other bug (KaTeX itself does not enable the pollution), and
-# mermaid runs with securityLevel: 'strict'.
-# Remove this entry once mermaid ships a release (package range *and* rebuilt
-# dist bundle) with katex >= 0.18.2.
-reason = "Low-severity katex advisory that requires pre-existing prototype pollution; only reachable through mermaid, which pins katex ^0.16 (fix is 0.18.2). Revisit when mermaid bumps katex."
